@@ -64,7 +64,7 @@ do_upgrade() {
 
 	TEXT="${TEXT}Install them?"
 
-	if [ $LISTING ]; then
+	if [ $LISTING == true ]; then
 		notify "--text-info" "$TEXT" true
 
 		if [ ! $GUI ]; then
