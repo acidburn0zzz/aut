@@ -1,0 +1,112 @@
+#!/bin/bash
+
+################################################################################
+# AUT (ArchLinux Upgrade Tool)
+# Copyright (C) 2017  Andrew Bezzubtsev
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+################################################################################
+
+VERSION="11/07/2017"
+
+GUI=true
+LISTING=true
+
+help() {
+	echo "AUT (Arch Upgrade Tool)"
+	echo "($VERSION release)"
+	echo "--skip-listing/-y -- skip avalible updates listing and go direct to upgrade"
+	echo "--textmode/-t     -- do not spawn dialog windows, do everything in textmode" 
+	echo "--help/-h         -- show help(this text)"
+}
+
+TITLE="AUT \(Arch Upgrade Tool\)"
+DEFAULT_ZENITY_FLAGS="--title=\"$TITLE\""
+
+notify() {
+	if [ $GUI == true ]; then
+		$3 && (printf "$2" | eval zenity $1 $DEFAULT_ZENITY_FLAGS)
+		! $3 && (eval zenity $1 $DEFAULT_ZENITY_FLAGS --text=\"$2\")
+	else
+		printf "$2"
+	fi
+}
+
+do_upgrade() {
+	PACKAGES_INFO=$(pacman -Qu)
+	PACKAGES_NO=$(echo "$PACKAGES_INFO" | sed '/^\s*$/d' | wc -l)
+
+	if [ $PACKAGES_NO -eq 0 ]; then
+		notify "--info" "No updates avalible" false
+		exit 2
+	fi
+
+	TEXT="Packages to be installed:\n"
+
+	for (( i=1; i<=$PACKAGES_NO; i++ )) ; do
+		PACKAGE_INFO=$(echo "$PACKAGES_INFO" | sed "$i!d")
+		PACKAGE_NAME=$(echo $PACKAGE_INFO | awk '{ print $1 }')
+		PACKAGE_NEW_VER=$(echo $PACKAGE_INFO | awk '{ print $4 }')
+
+		TEXT="$TEXT$PACKAGE_NAME($PACKAGE_NEW_VER)\n"
+	done
+
+	TEXT="${TEXT}Install them?"
+
+	if [ $LISTING ]; then
+		notify "--text-info" "$TEXT" true
+
+		if [ ! $GUI ]; then
+			printf "Y/n"
+			read -n 1 APPLY
+			! [ $APPLY == "n" || $APPLY == "N" ]
+		fi
+	else
+		1
+	fi
+
+	if [ $? -eq 0 ]; then
+		yes | gksudo pacman -Syu
+		zenity --info --text="Updates have been installed" --title=$TITLE
+	else
+		zenity --warning --text="Update has been canceled" --title=$TITLE
+	fi
+
+	exit 0
+}
+
+for i in "$@" ; do
+	case $i in
+		--help|-h)
+			help
+			exit 0
+			;;
+
+		--skip-listing|-y)
+			LISTING=false
+			;;
+
+		--textmode|-t)
+			GUI=false
+			;;
+
+		*)
+			printf "Invalid parameter %s" "$1"
+			help
+			exit 1
+			;;
+	esac
+done
+
+do_upgrade
